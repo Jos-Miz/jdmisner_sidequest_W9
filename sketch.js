@@ -9,6 +9,10 @@
     W (Up Arrow)                  Jump
     Space Bar                     Attack
 
+  Debug Controls (press D to open/close):
+    1                             Toggle Moon Gravity
+    2                             Toggle Super Jump
+
   Tile key:
     g = groundTile.png       (surface ground)
     d = groundTileDeep.png   (deep ground, below surface)
@@ -30,11 +34,20 @@ let playerAnis = {
 let ground, groundDeep;
 let groundImg, groundDeepImg;
 
-let attacking = false; // track if the player is attacking
-let attackFrameCounter = 0; // tracking attack animation
+let attacking = false;
+let attackFrameCounter = 0;
+
+// --- DEBUG STATE (ADDED) ---
+let debugOpen = false;        // whether the debug overlay is visible
+let moonGravity = false;      // whether moon gravity is active
+let superJump = false;        // whether super jump is active
+
+const NORMAL_GRAVITY = 10;    // original gravity value
+const MOON_GRAVITY = 2;       // reduced gravity for moon mode
+const NORMAL_JUMP = -4;       // original jump velocity
+const SUPER_JUMP_VEL = -8;    // increased jump velocity for super jump
 
 // --- TILE MAP ---
-// an array that uses the tile key to create the level
 let level = [
   "              ",
   "              ",
@@ -42,37 +55,30 @@ let level = [
   "              ",
   "              ",
   "       ggg    ",
-  "gggggggggggggg", // surface ground
-  "dddddddddddddd", // deep ground
+  "gggggggggggggg",
+  "dddddddddddddd",
 ];
 
 // --- LEVEL CONSTANTS ---
-// camera view size
 const VIEWW = 320,
   VIEWH = 180;
 
-// tile width & height
 const TILE_W = 24,
   TILE_H = 24;
 
-// size of individual animation frames
 const FRAME_W = 32,
   FRAME_H = 32;
 
-// Y-coordinate of player start (4 tiles above the bottom)
 const MAP_START_Y = VIEWH - TILE_H * 4;
 
-// gravity
 const GRAVITY = 10;
 
 function preload() {
-  // --- IMAGES ---
   playerImg = loadImage("assets/foxSpriteSheet.png");
   bgImg = loadImage("assets/combinedBackground.png");
   groundImg = loadImage("assets/groundTile.png");
   groundDeepImg = loadImage("assets/groundTileDeep.png");
 
-  // --- SOUND ---
   if (typeof loadSound === "function") {
     jumpSfx = loadSound("assets/sfx/jump.wav");
     musicSfx = loadSound("assets/sfx/music.wav");
@@ -80,19 +86,14 @@ function preload() {
 }
 
 function setup() {
-  // pixelated rendering with autoscaling
   new Canvas(VIEWW, VIEWH, "pixelated");
-
-  // needed to correct an visual artifacts from attempted antialiasing
   allSprites.pixelPerfect = true;
 
   world.gravity.y = GRAVITY;
 
-  // Try to start background music immediately.
   if (musicSfx) musicSfx.setLoop(true);
   startMusicIfNeeded();
 
-  // --- TILE GROUPS ---
   ground = new Group();
   ground.physics = "static";
   ground.img = groundImg;
@@ -103,26 +104,22 @@ function setup() {
   groundDeep.img = groundDeepImg;
   groundDeep.tile = "d";
 
-  // a Tiles object creates a level based on the level map array (defined at the beginning)
   new Tiles(level, 0, 0, TILE_W, TILE_H);
 
-  // --- PLAYER ---
-  player = new Sprite(FRAME_W, MAP_START_Y, FRAME_W, FRAME_H); // create the player
-  player.spriteSheet = playerImg; // use the sprite sheet
-  player.rotationLock = true; // turn off rotations (player shouldn't rotate)
+  player = new Sprite(FRAME_W, MAP_START_Y, FRAME_W, FRAME_H);
+  player.spriteSheet = playerImg;
+  player.rotationLock = true;
 
-  // player animation parameters
   player.anis.w = FRAME_W;
   player.anis.h = FRAME_H;
-  player.anis.offset.y = -4; // offset the collision box up
-  player.addAnis(playerAnis); // add the player animations defined earlier
-  player.ani = "idle"; // default to the idle animation
-  player.w = 18; // set the width of the collsion box
-  player.h = 20; // set the height of the collsion box
-  player.friction = 0; // set the friciton to 0 so we don't stick to walls
-  player.bounciness = 0; // set the bounciness to 0 so the player doesn't bounce
+  player.anis.offset.y = -4;
+  player.addAnis(playerAnis);
+  player.ani = "idle";
+  player.w = 18;
+  player.h = 20;
+  player.friction = 0;
+  player.bounciness = 0;
 
-  // --- GROUND SENSOR --- for use when detecting if the player is standing on the ground
   sensor = new Sprite();
   sensor.x = player.x;
   sensor.y = player.y + player.h / 2;
@@ -143,7 +140,6 @@ function startMusicIfNeeded() {
     musicStarted = musicSfx.isPlaying();
   };
 
-  // Some browsers require a user gesture before audio can start.
   const maybePromise = userStartAudio();
   if (maybePromise && typeof maybePromise.then === "function") {
     maybePromise.then(startLoop).catch(() => {});
@@ -152,8 +148,31 @@ function startMusicIfNeeded() {
   }
 }
 
+// --- ADDED: keyPressed handles debug toggles ---
+// Note: "d" was previously used for movement (left arrow alternative),
+// but the assignment specifies D for the debug menu. Left/right movement
+// uses arrow keys or A/W as noted in the controls header above.
 function keyPressed() {
   startMusicIfNeeded();
+
+  // Toggle debug overlay open/closed
+  if (key === "d" || key === "D") {
+    debugOpen = !debugOpen;
+  }
+
+  // Debug toggles only work when debug menu is open
+  if (debugOpen) {
+    // 1 = Toggle Moon Gravity
+    if (key === "1") {
+      moonGravity = !moonGravity;
+      world.gravity.y = moonGravity ? MOON_GRAVITY : NORMAL_GRAVITY;
+    }
+
+    // 2 = Toggle Super Jump
+    if (key === "2") {
+      superJump = !superJump;
+    }
+  }
 }
 
 function mousePressed() {
@@ -173,7 +192,6 @@ function draw() {
   camera.on();
 
   // --- PLAYER CONTROLS ---
-  // first check to see if the player is on the ground
   let grounded = sensor.overlapping(ground);
 
   // -- ATTACK INPUT --
@@ -183,19 +201,19 @@ function draw() {
     player.vel.x = 0;
     player.ani.frame = 0;
     player.ani = "attack";
-    player.ani.play(); // plays once to end
+    player.ani.play();
   }
 
   // -- JUMP --
+  // ADDED: use SUPER_JUMP_VEL if super jump is on, otherwise use NORMAL_JUMP
   if (grounded && kb.presses("up")) {
-    player.vel.y = -4;
+    player.vel.y = superJump ? SUPER_JUMP_VEL : NORMAL_JUMP;
     if (jumpSfx) jumpSfx.play();
   }
 
   // --- STATE MACHINE ---
   if (attacking) {
     attackFrameCounter++;
-    // Attack lasts ~6 frames * frameDelay 2 = 12 cycles (adjust if needed)
     if (attackFrameCounter > 12) {
       attacking = false;
       attackFrameCounter = 0;
@@ -221,4 +239,61 @@ function draw() {
 
   // --- KEEP IN VIEW ---
   player.pos.x = constrain(player.pos.x, FRAME_W / 2, VIEWW - FRAME_W / 2);
+
+  // --- ADDED: DEBUG OVERLAY ---
+  // Drawn in screen space (camera off) so it always appears on top
+  camera.off();
+  drawDebugOverlay();
+  camera.on();
+}
+
+// --- ADDED: drawDebugOverlay ---
+// Draws a small semi-transparent panel in the top-left corner.
+// Always shows a hint to open the menu; full info shown when open.
+function drawDebugOverlay() {
+  textFont("monospace");
+  noStroke();
+
+  if (!debugOpen) {
+    // Compact hint when debug is closed
+    fill(0, 0, 0, 120);
+    rect(4, 4, 68, 14, 3);
+    fill(180);
+    textSize(6);
+    textAlign(LEFT, TOP);
+    text("D = debug menu", 7, 7);
+    return;
+  }
+
+  // Full debug panel when open
+  fill(0, 0, 0, 160);
+  rect(4, 4, 100, 60, 4);
+
+  textSize(6);
+  textAlign(LEFT, TOP);
+
+  // Title
+  fill(255, 220, 50);
+  text("-- DEBUG MENU --", 10, 9);
+
+  // Moon gravity line
+  fill(moonGravity ? 100 : 160, moonGravity ? 220 : 160, 255);
+  text(
+    "[1] MOON GRAVITY: " + (moonGravity ? "ON " : "OFF"),
+    10,
+    20
+  );
+
+  // Super jump line
+  fill(superJump ? 100 : 160, superJump ? 255 : 160, superJump ? 100 : 160);
+  text(
+    "[2] SUPER JUMP:   " + (superJump ? "ON " : "OFF"),
+    10,
+    30
+  );
+
+  // Divider + close hint
+  fill(150);
+  text("----------------", 10, 40);
+  text("[D] close menu", 10, 50);
 }

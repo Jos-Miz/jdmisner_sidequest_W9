@@ -247,53 +247,82 @@ function draw() {
   camera.on();
 }
 
-// --- ADDED: drawDebugOverlay ---
-// Draws a small semi-transparent panel in the top-left corner.
-// Always shows a hint to open the menu; full info shown when open.
+// --- FIXED: drawDebugOverlay ---
+// FIX: The original version used textSize(6) directly on the pixelated canvas,
+// which caused the pixel-scaling to stretch and distort text into an unreadable mess.
+// Solution: use push()/pop() with scale() to draw at the true display resolution
+// instead of the low-res virtual canvas resolution (320x180).
+// All coordinates below are in display pixels, then scaled back down.
 function drawDebugOverlay() {
+  // CHANGED: get the actual on-screen pixel size of the canvas
+  const displayW = canvas.elt.clientWidth  || canvas.elt.width;
+  const displayH = canvas.elt.clientHeight || canvas.elt.height;
+
+  // scale factor from virtual (320x180) coords to real display coords
+  const scaleX = displayW / VIEWW;
+  const scaleY = displayH / VIEWH;
+
+  push();
+
+  // CHANGED: scale up to display resolution so text renders crisply
+  scale(1 / scaleX, 1 / scaleY);
+
+  // CHANGED: use a comfortable readable text size in real pixels
+  const TS = 13;              // text size in display pixels
+  const PAD = 10;             // padding inside the box
+  const LEFT_X = 8 * scaleX; // box left edge in display pixels
+  const TOP_Y  = 8 * scaleY; // box top edge in display pixels
+
   textFont("monospace");
+  textSize(TS);
   noStroke();
+  textAlign(LEFT, TOP);
 
   if (!debugOpen) {
-    // Compact hint when debug is closed
-    fill(0, 0, 0, 120);
-    rect(4, 4, 68, 14, 3);
-    fill(180);
-    textSize(6);
-    textAlign(LEFT, TOP);
-    text("D = debug menu", 7, 7);
+    // Compact closed hint
+    const hintW = 130, hintH = TS + PAD;
+    fill(0, 0, 0, 150);
+    rect(LEFT_X, TOP_Y, hintW, hintH, 4);
+    fill(200, 200, 200);
+    text("D = debug menu", LEFT_X + PAD * 0.6, TOP_Y + PAD * 0.4);
+    pop();
     return;
   }
 
-  // Full debug panel when open
-  fill(0, 0, 0, 160);
-  rect(4, 4, 100, 60, 4);
+  // CHANGED: fixed-width box sized to fit content cleanly
+  const BOX_W = 220;
+  const BOX_H = TS * 6 + PAD * 3.5;
+  const TX = LEFT_X + PAD;  // text x
+  let TY   = TOP_Y  + PAD;  // text y, incremented per line
+  const LINE = TS + 5;      // line height
 
-  textSize(6);
-  textAlign(LEFT, TOP);
+  // Background panel
+  fill(0, 0, 0, 180);
+  rect(LEFT_X, TOP_Y, BOX_W, BOX_H, 5);
 
-  // Title
+  // Title — yellow
   fill(255, 220, 50);
-  text("-- DEBUG MENU --", 10, 9);
+  text("=== DEBUG MENU ===", TX, TY);
+  TY += LINE + 3;
 
-  // Moon gravity line
-  fill(moonGravity ? 100 : 160, moonGravity ? 220 : 160, 255);
-  text(
-    "[1] MOON GRAVITY: " + (moonGravity ? "ON " : "OFF"),
-    10,
-    20
-  );
+  // Moon gravity — blue tint when ON, grey when OFF
+  fill(moonGravity ? color(120, 210, 255) : color(180, 180, 180));
+  text("[1] Moon Gravity:  " + (moonGravity ? "ON" : "OFF"), TX, TY);
+  TY += LINE;
 
-  // Super jump line
-  fill(superJump ? 100 : 160, superJump ? 255 : 160, superJump ? 100 : 160);
-  text(
-    "[2] SUPER JUMP:   " + (superJump ? "ON " : "OFF"),
-    10,
-    30
-  );
+  // Super jump — green tint when ON, grey when OFF
+  fill(superJump ? color(100, 255, 130) : color(180, 180, 180));
+  text("[2] Super Jump:    " + (superJump ? "ON" : "OFF"), TX, TY);
+  TY += LINE + 3;
 
-  // Divider + close hint
-  fill(150);
-  text("----------------", 10, 40);
-  text("[D] close menu", 10, 50);
+  // Divider
+  fill(100, 100, 100);
+  text("------------------", TX, TY);
+  TY += LINE;
+
+  // Close hint
+  fill(200, 200, 200);
+  text("[D] Close menu", TX, TY);
+
+  pop();
 }

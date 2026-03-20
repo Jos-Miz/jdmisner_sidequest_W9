@@ -1,6 +1,6 @@
 /*
   Week 9 — Example 3: Adding Sound & Music
- 
+
   Course: GBDA302 | Instructors: Dr. Karen Cochrane & David Han
   Date: Mar. 19, 2026
 
@@ -17,6 +17,8 @@
     d = groundTileDeep.png   (deep ground, below surface)
       = empty (no sprite)
 */
+let debugMusicSfx;
+let wolfImg;
 
 let player;
 let playerImg, bgImg;
@@ -162,7 +164,7 @@ function createDebugPanel() {
   // Always-visible hint centered at the bottom of the screen
   const fHint = document.createElement("div");
   fHint.id = "dbg-f-hint";
-  fHint.textContent = "F — Debug Menu";
+  fHint.textContent = "F — Debug Menu (Alpha Mode)";
   document.body.appendChild(fHint);
   window._dbgFHint = fHint;
 
@@ -227,9 +229,13 @@ function preload() {
   groundImg = loadImage("assets/groundTile.png");
   groundDeepImg = loadImage("assets/groundTileDeep.png");
 
+  // these two are in the main folder, not in assets
+  wolfImg = loadImage("wolf.jpeg");
+
   if (typeof loadSound === "function") {
     jumpSfx = loadSound("assets/sfx/jump.wav");
     musicSfx = loadSound("assets/sfx/music.wav");
+    debugMusicSfx = loadSound("metal.mp3");
   }
 }
 
@@ -247,6 +253,7 @@ function setup() {
   }
 
   if (musicSfx) musicSfx.setLoop(true);
+  if (debugMusicSfx) debugMusicSfx.setLoop(true);
   startMusicIfNeeded();
 
   // Build the HTML debug panel (once)
@@ -312,6 +319,28 @@ function keyPressed() {
   // Toggle the debug menu with F
   if (key === "f" || key === "F") {
     isDebugOpen = !isDebugOpen;
+
+    if (isDebugOpen) {
+      // stop normal music
+      if (musicSfx && musicSfx.isPlaying()) {
+        musicSfx.stop();
+      }
+
+      // play metal music
+      if (debugMusicSfx && !debugMusicSfx.isPlaying()) {
+        debugMusicSfx.play();
+      }
+    } else {
+      // stop metal music
+      if (debugMusicSfx && debugMusicSfx.isPlaying()) {
+        debugMusicSfx.stop();
+      }
+
+      // resume normal music
+      if (musicSfx && !musicSfx.isPlaying()) {
+        musicSfx.play();
+      }
+    }
   }
 
   // Feature toggles only work while the menu is open
@@ -391,7 +420,23 @@ function draw() {
 
   // --- KEEP IN VIEW ---
   player.pos.x = constrain(player.pos.x, FRAME_W / 2, VIEWW - FRAME_W / 2);
+  // --- DEBUG OVERLAY + WOLF ---
+  if (isDebugOpen) {
+    camera.off();
 
+    // dark screen
+    noStroke();
+    fill(0, 0, 0, 140);
+    rect(0, 0, VIEWW, VIEWH);
+
+    // wolf image top-left
+    if (wolfImg) {
+      imageMode(CORNER);
+      image(wolfImg, 10, 10, 80, 80);
+    }
+
+    camera.on();
+  }
   // --- UPDATE HTML DEBUG PANEL ---
   updateDebugPanel();
 }
